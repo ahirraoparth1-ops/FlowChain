@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Icon from '../AppIcon';
 import Button from './Button';
+import { useAuth } from '../../hooks/useAuth.jsx';
 
 const Header = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const { user, isAuthenticated, logout } = useAuth();
 
   const navigationItems = [
     {
@@ -33,7 +35,13 @@ const Header = () => {
       label: 'Insights',
       icon: 'Lightbulb',
       description: 'AI-generated recommendations'
-    }
+    },
+    ...(isAuthenticated ? [{
+      path: '/profile',
+      label: 'Profile',
+      icon: 'User',
+      description: 'Manage your profile settings'
+    }] : [])
   ];
 
   useEffect(() => {
@@ -111,15 +119,50 @@ const Header = () => {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center ml-auto space-x-2">
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <Icon name="Bell" size={18} />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <Icon name="Settings" size={18} />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-10 w-10">
-              <Icon name="User" size={18} />
-            </Button>
+            {isAuthenticated && (
+              <>
+                <Button variant="ghost" size="icon" className="h-10 w-10">
+                  <Icon name="Bell" size={18} />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-10 w-10">
+                  <Icon name="Settings" size={18} />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-10 w-10"
+                  onClick={() => handleNavigation('/profile')}
+                >
+                  {user?.profileImageUrl ? (
+                    <img 
+                      src={user.profileImageUrl} 
+                      alt="Profile" 
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    <Icon name="User" size={18} />
+                  )}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={logout}
+                  className="ml-2"
+                >
+                  Logout
+                </Button>
+              </>
+            )}
+            {!isAuthenticated && (
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={() => window.location.href = '/api/login'}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                Login with Google
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -154,18 +197,44 @@ const Header = () => {
               
               <div className="border-t border-border pt-4 mt-4">
                 <div className="flex flex-col space-y-2">
-                  <Button variant="ghost" className="justify-start">
-                    <Icon name="Bell" size={18} className="mr-3" />
-                    Notifications
-                  </Button>
-                  <Button variant="ghost" className="justify-start">
-                    <Icon name="Settings" size={18} className="mr-3" />
-                    Settings
-                  </Button>
-                  <Button variant="ghost" className="justify-start">
-                    <Icon name="User" size={18} className="mr-3" />
-                    Profile
-                  </Button>
+                  {isAuthenticated && (
+                    <>
+                      <Button variant="ghost" className="justify-start">
+                        <Icon name="Bell" size={18} className="mr-3" />
+                        Notifications
+                      </Button>
+                      <Button variant="ghost" className="justify-start">
+                        <Icon name="Settings" size={18} className="mr-3" />
+                        Settings
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="justify-start"
+                        onClick={() => handleNavigation('/profile')}
+                      >
+                        <Icon name="User" size={18} className="mr-3" />
+                        Profile
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        className="justify-start text-red-600"
+                        onClick={logout}
+                      >
+                        <Icon name="LogOut" size={18} className="mr-3" />
+                        Logout
+                      </Button>
+                    </>
+                  )}
+                  {!isAuthenticated && (
+                    <Button 
+                      variant="default" 
+                      className="justify-center bg-blue-600 hover:bg-blue-700"
+                      onClick={() => window.location.href = '/api/login'}
+                    >
+                      <Icon name="LogIn" size={18} className="mr-3" />
+                      Login with Google
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

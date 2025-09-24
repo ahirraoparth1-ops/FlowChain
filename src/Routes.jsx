@@ -7,6 +7,7 @@ import ForecastDashboard from './pages/forecast-dashboard';
 import LandingPage from './pages/landing-page';
 import DataUpload from './pages/data-upload';
 import AIInsights from './pages/ai-insights';
+import Profile from './pages/profile';
 
 const Routes = () => {
   return (
@@ -20,6 +21,7 @@ const Routes = () => {
         <Route path="/landing-page" element={<LandingPage />} />
         <Route path="/data-upload" element={<DataUpload />} />
         <Route path="/ai-insights" element={<AIInsights />} />
+        <Route path="/profile" element={<Profile />} />
         <Route path="*" element={<NotFound />} />
       </RouterRoutes>
       </ErrorBoundary>
