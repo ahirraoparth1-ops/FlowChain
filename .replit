@@ -5,6 +5,7 @@ integrations = ["javascript_log_in_with_replit:1.0.0"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["openssh_gssapi"]
 
 [workflows]
 runButton = "Project"
