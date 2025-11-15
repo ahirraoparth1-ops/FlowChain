@@ -18,75 +18,101 @@ const ForecastDashboard = () => {
   const [showReverseForecasting, setShowReverseForecasting] = useState(false);
   const [uploadedDataInfo, setUploadedDataInfo] = useState(null);
 
-  // Mock data for metrics
-  const metricsData = [
+  // Dynamic metrics based on uploaded data and forecast
+  const totalItems = uploadedDataInfo?.totalRows || 0;
+  const forecastResult = (() => {
+    try {
+      const stored = localStorage.getItem('forecastResult');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  })();
+  const forecastAccuracy = forecastResult.length ? 'N/A' : 'N/A'; // Placeholder, needs real calculation
+  const itemsAtRisk = forecastResult.length ? forecastResult.filter(row => row.forecast < 0).length : 0;
+  const potentialSavings = forecastResult.length ? `$${(forecastResult.reduce((sum, row) => sum + Math.max(0, row.forecast), 0)).toLocaleString()}` : '$0';
+  const surplusItems = forecastResult.length ? forecastResult.filter(row => row.forecast > 0).length : 0;
+  const wasteReduction = forecastResult.length ? 'N/A' : 'N/A'; // Placeholder
+
+  const enhancedMetricsData = [
     {
       title: "Total Items Analyzed",
-      value: "1,247",
-      change: "+12.5%",
-      changeType: "positive",
+      value: totalItems.toLocaleString(),
+      change: '',
+      changeType: "neutral",
       icon: "Package",
       color: "blue"
     },
     {
       title: "Forecast Accuracy",
-      value: "87.3%",
-      change: "+2.1%",
-      changeType: "positive",
+      value: forecastAccuracy,
+      change: '',
+      changeType: "neutral",
       icon: "Target",
       color: "green"
     },
     {
       title: "Items at Risk",
-      value: "23",
-      change: "-8.2%",
-      changeType: "positive",
+      value: itemsAtRisk.toLocaleString(),
+      change: '',
+      changeType: "neutral",
       icon: "AlertTriangle",
       color: "red"
     },
     {
       title: "Potential Savings",
-      value: "$45,230",
-      change: "+15.7%",
-      changeType: "positive",
+      value: potentialSavings,
+      change: '',
+      changeType: "neutral",
       icon: "DollarSign",
       color: "green"
-    }
-  ];
-
-  // Updated metrics to include sustainability metrics
-  const enhancedMetricsData = [
-    ...metricsData,
+    },
     {
       title: "Surplus Items",
-      value: "4",
-      change: "+2",
+      value: surplusItems.toLocaleString(),
+      change: '',
       changeType: "neutral",
       icon: "Recycle",
       color: "green"
     },
     {
       title: "Waste Reduction",
-      value: "15.2%",
-      change: "+3.1%",
-      changeType: "positive", 
+      value: wasteReduction,
+      change: '',
+      changeType: "neutral",
       icon: "Leaf",
       color: "green"
     }
   ];
 
-  // Mock data for forecast chart
-  const forecastData = [
-    { month: 'Jan 2024', actual: 12500, predicted: 12200 },
-    { month: 'Feb 2024', actual: 13200, predicted: 13100 },
-    { month: 'Mar 2024', actual: 11800, predicted: 12000 },
-    { month: 'Apr 2024', actual: 14500, predicted: 14200 },
-    { month: 'May 2024', actual: 15200, predicted: 15400 },
-    { month: 'Jun 2024', actual: 16800, predicted: 16500 },
-    { month: 'Jul 2024', actual: 18200, predicted: 18000 },
-    { month: 'Aug 2024', actual: 17500, predicted: 17800 },
-    { month: 'Sep 2024', actual: 19200, predicted: 19100 }
-  ];
+  // Try to get real forecast result from localStorage
+  let forecastData = [];
+  try {
+    const storedForecast = localStorage.getItem('forecastResult');
+    if (storedForecast) {
+      // Backend returns [{date, forecast, yhat_lower, yhat_upper}...]
+      forecastData = JSON.parse(storedForecast).map(row => ({
+        month: row.date,
+        actual: null, // No actuals for future periods
+        predicted: row.forecast
+      }));
+    } else {
+      // Fallback to mock data
+      forecastData = [
+        { month: 'Jan 2024', actual: 12500, predicted: 12200 },
+        { month: 'Feb 2024', actual: 13200, predicted: 13100 },
+        { month: 'Mar 2024', actual: 11800, predicted: 12000 },
+        { month: 'Apr 2024', actual: 14500, predicted: 14200 },
+        { month: 'May 2024', actual: 15200, predicted: 15400 },
+        { month: 'Jun 2024', actual: 16800, predicted: 16500 },
+        { month: 'Jul 2024', actual: 18200, predicted: 18000 },
+        { month: 'Aug 2024', actual: 17500, predicted: 17800 },
+        { month: 'Sep 2024', actual: 19200, predicted: 19100 }
+      ];
+    }
+  } catch (e) {
+    forecastData = [];
+  }
 
   // Mock data for stock comparison
   const stockComparisonData = [

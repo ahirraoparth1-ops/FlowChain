@@ -45,12 +45,17 @@ const Footer = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8 mb-12">
           {/* Brand Section */}
           <div className="lg:col-span-2">
-            <div className="flex items-center space-x-2 mb-6">
-              <div className="flex items-center justify-center w-10 h-10 bg-primary rounded-xl">
-                <Icon name="TrendingUp" size={24} color="white" />
+            <div className="flex flex-col mb-6">
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center justify-center w-10 h-10 bg-primary rounded-xl">
+                  <Icon name="TrendingUp" size={24} color="white" />
+                </div>
+                <span className="font-bold text-2xl text-foreground">
+                  FlowChain
+                </span>
               </div>
-              <span className="font-bold text-xl text-foreground">
-                AI Supply Chain
+              <span className="text-sm text-muted-foreground ml-12 -mt-1">
+                AI powered supply chain
               </span>
             </div>
             <p className="text-muted-foreground mb-6 max-w-sm">

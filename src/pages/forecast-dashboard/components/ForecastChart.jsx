@@ -13,11 +13,11 @@ const ForecastChart = ({ data, title, showSurplusIndicators = false }) => {
     { label: '1Y', value: '1Y' }
   ];
 
-  // Add surplus calculation to data
+  // Add surplus calculation only if both actual and predicted exist
   const enhancedData = data?.map(item => ({
     ...item,
-    surplus: Math.max(0, item?.actual - item?.predicted),
-    deficit: Math.max(0, item?.predicted - item?.actual)
+    surplus: (item?.actual != null && item?.predicted != null) ? Math.max(0, item.actual - item.predicted) : undefined,
+    deficit: (item?.actual != null && item?.predicted != null) ? Math.max(0, item.predicted - item.actual) : undefined
   }));
 
   const CustomTooltip = ({ active, payload, label }) => {
@@ -108,14 +108,17 @@ const ForecastChart = ({ data, title, showSurplusIndicators = false }) => {
             />
             <Tooltip content={<CustomTooltip />} />
             <Legend />
-            <Line 
-              type="monotone" 
-              dataKey="actual" 
-              stroke="#2563eb" 
-              strokeWidth={3}
-              dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
-              name="Actual Sales"
-            />
+            {/* Only plot actuals if available */}
+            {enhancedData.some(d => d.actual != null) && (
+              <Line 
+                type="monotone" 
+                dataKey="actual" 
+                stroke="#2563eb" 
+                strokeWidth={3}
+                dot={{ fill: '#2563eb', strokeWidth: 2, r: 4 }}
+                name="Actual Sales"
+              />
+            )}
             <Line 
               type="monotone" 
               dataKey="predicted" 

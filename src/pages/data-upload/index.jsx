@@ -158,13 +158,19 @@ const DataUpload = () => {
       setPreviewData(previewRows);
       setRawFileData(parsedData);
 
-      // Store data in localStorage for dashboard access
-      localStorage.setItem('uploadedData', JSON.stringify({
-        fileName: file?.name,
-        data: parsedData,
-        uploadTime: new Date()?.toISOString(),
-        totalRows: parsedData?.length
-      }));
+      // Store only metadata in localStorage (not the entire dataset to avoid quota issues)
+      try {
+        localStorage.setItem('uploadedData', JSON.stringify({
+          fileName: file?.name,
+          uploadTime: new Date()?.toISOString(),
+          totalRows: parsedData?.length,
+          fileSize: file?.size
+        }));
+      } catch (storageError) {
+        // If localStorage fails, just keep data in memory
+        console.warn('Could not store metadata in localStorage:', storageError);
+        // Continue anyway - data is in component state
+      }
 
       showToast(`File "${file?.name}" parsed successfully! ${parsedData?.length} rows found.`, 'success');
     } catch (parseError) {
@@ -176,8 +182,8 @@ const DataUpload = () => {
   };
 
   const handleProcessData = async () => {
-    if (!rawFileData || rawFileData?.length === 0) {
-      showToast('No data to process. Please upload a file first.', 'error');
+    if (!selectedFile) {
+      showToast('No file selected. Please upload a file first.', 'error');
       return false;
     }
 
@@ -185,23 +191,32 @@ const DataUpload = () => {
     setProcessingProgress(0);
 
     try {
-      // Simulate processing with progress updates
-      const progressSteps = [10, 25, 45, 65, 80, 95, 100];
-      
-      for (let i = 0; i < progressSteps?.length; i++) {
-        await new Promise(resolve => setTimeout(resolve, 800));
-        setProcessingProgress(progressSteps?.[i]);
+      // Show progress bar while uploading/processing
+      setProcessingProgress(20);
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      // Send file to FastAPI backend
+      const response = await fetch('http://127.0.0.1:8000/forecast', {
+        method: 'POST',
+        body: formData,
+      });
+      setProcessingProgress(60);
+      const result = await response.json();
+      setProcessingProgress(90);
+
+      if (result.error) {
+        showToast(`Forecast error: ${result.error}`, 'error');
+        setIsProcessing(false);
+        return false;
       }
 
-      // Update stored data with processing flag
-      const storedData = JSON.parse(localStorage.getItem('uploadedData') || '{}');
-      storedData.processed = true;
-      storedData.processedTime = new Date()?.toISOString();
-      localStorage.setItem('uploadedData', JSON.stringify(storedData));
+      // Store forecast result in localStorage for dashboard
+      localStorage.setItem('forecastResult', JSON.stringify(result.forecast));
 
       setIsProcessing(false);
-      showToast('Data processed successfully! You can now view results in the dashboard.', 'success');
-      
+      setProcessingProgress(100);
+      showToast('Forecast generated successfully! You can now view results in the dashboard.', 'success');
       return true;
     } catch (processingError) {
       setIsProcessing(false);

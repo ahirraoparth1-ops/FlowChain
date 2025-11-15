@@ -72,17 +72,23 @@ const Header = () => {
 
   return (
     <>
+
       <header className={`sticky top-0 z-50 w-full bg-card border-b border-border nav-transition ${
         isScrolled ? 'shadow-sm' : ''
       }`}>
-        <div className="flex h-16 items-center px-4 lg:px-6">
-          {/* Logo */}
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center justify-center w-8 h-8 bg-primary rounded-lg">
-              <Icon name="TrendingUp" size={20} color="white" />
+        <div className="flex h-20 items-center px-4 lg:px-6">
+          {/* Logo and Titles */}
+          <div className="flex flex-col justify-center">
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-center w-10 h-10 bg-primary rounded-lg">
+                <Icon name="TrendingUp" size={24} color="white" />
+              </div>
+              <span className="font-bold text-2xl text-foreground">
+                FlowChain
+              </span>
             </div>
-            <span className="font-semibold text-lg text-foreground">
-              AI Supply Chain
+            <span className="text-sm text-muted-foreground ml-12 -mt-1">
+              AI powered supply chain
             </span>
           </div>
 

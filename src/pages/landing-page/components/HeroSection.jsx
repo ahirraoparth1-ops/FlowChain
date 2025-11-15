@@ -15,27 +15,35 @@ const HeroSection = ({ onGetStarted }) => {
       <div className="absolute inset-0 bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 animate-pulse" />
       <div className="absolute inset-0 bg-gradient-to-tr from-emerald-50/50 via-transparent to-blue-50/50" />
       <div className="relative z-10 max-w-6xl mx-auto text-center">
+        {/* Main Title with Proportionate UI and Smoother Animation */}
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0, y: 30 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}
+          className="flex flex-col items-center mb-16"
+        >
+          <div className="flex items-center justify-center mb-8">
+            <div className="flex items-center justify-center w-24 h-24 bg-primary rounded-3xl shadow-2xl">
+              <Icon name="TrendingUp" size={48} color="white" />
+            </div>
+          </div>
+          <span className="font-extrabold text-7xl text-foreground tracking-tight drop-shadow-md mb-4">
+            FlowChain
+          </span>
+        </motion.div>
         <motion.div
           initial={{ y: 50, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.8 }}
-          className="mb-8"
+          className="mb-16"
         >
-          <div className="flex items-center justify-center mb-6">
-            <div className="flex items-center justify-center w-16 h-16 bg-primary rounded-2xl shadow-lg">
-              <Icon name="TrendingUp" size={32} color="white" />
-            </div>
-          </div>
-          
-          <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold text-foreground mb-6 leading-tight">
+          <h1 className="text-2xl md:text-4xl lg:text-5xl font-semibold text-foreground mb-8 leading-snug">
             AI-Powered Supply Chain
-            <span className="block text-primary">Forecasting Platform</span>
+            <span className="block text-primary mt-2">Forecasting Platform</span>
           </h1>
-          
-          <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground max-w-4xl mx-auto mb-8 leading-relaxed">
-            Transform your inventory management with intelligent demand forecasting. 
-            Upload your data, get AI-driven insights, and optimize stock levels to reduce waste 
-            while maximizing profitability.
+          <p className="text-base md:text-lg lg:text-xl text-muted-foreground max-w-3xl mx-auto mb-8 leading-relaxed">
+            Transform your inventory management with intelligent demand forecasting.<br className="hidden md:block" />
+            Upload your data, get AI-driven insights, and optimize stock levels to reduce waste while maximizing profitability.
           </p>
         </motion.div>
 
