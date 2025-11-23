@@ -17,4 +17,15 @@ env/
 venv/
 ENV/
 env.bak/
-venv.bak/.env
+venv.bak/
+.env
+
+# Java
+*.class
+
+# Other
+.replit
+attached_assets/
+favicon.ico
+Demo.java
+Literals.java
