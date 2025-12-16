@@ -500,3 +500,10 @@ def root():
             "Performance timing and logging"
         ]
     }
+
+ 
+ @ a p p . g e t ( " / h e a l t h z " ) 
+ d e f   h e a l t h z ( ) : 
+         r e t u r n   { " s t a t u s " :   " o k " } 
+  
+ 
