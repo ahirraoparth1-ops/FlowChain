@@ -9,10 +9,27 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sklearn.linear_model import LinearRegression
 import numpy as np
+import json
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def convert_numpy_types(obj):
+    """Convert NumPy types to native Python types for JSON serialization"""
+    if isinstance(obj, (np.integer, np.int64, np.int32, np.int16, np.int8)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64, np.float32, np.float16)):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, (list, tuple)):
+        return [convert_numpy_types(item) for item in obj]
+    elif pd.isna(obj):
+        return None
+    return obj
 
 app = FastAPI()
 
@@ -49,6 +66,19 @@ def fit_fast_model(group_data):
     """Fast forecasting using Linear Regression - suitable for large datasets"""
     try:
         group = group_data.copy()
+        if 'date' not in group.columns:
+            logger.error("[FAST_MODEL] Missing 'date' column")
+            return None
+        if 'sales' not in group.columns:
+            logger.error("[FAST_MODEL] Missing 'sales' column")
+            return None
+        
+        # Filter to only required columns to avoid categorical column issues
+        group = group[['date', 'sales']].copy()
+        
+        # Ensure sales column is numeric (convert if needed)
+        group['sales'] = pd.to_numeric(group['sales'], errors='coerce')
+        
         group = group.sort_values('date')
         group = group.dropna(subset=['date', 'sales'])
         
@@ -59,6 +89,19 @@ def fit_fast_model(group_data):
         group['days'] = (group['date'] - group['date'].min()).dt.days
         X = group[['days']].values
         y = group['sales'].values
+        
+        # Ensure y is numeric and convert to float
+        y = pd.to_numeric(y, errors='coerce')
+        y = y.astype(float)
+        
+        # Remove any remaining NaN values (shouldn't happen, but safety check)
+        valid_mask = ~np.isnan(y)
+        X = X[valid_mask]
+        y = y[valid_mask]
+        
+        if len(y) < 3:
+            logger.error("[FAST_MODEL] Insufficient valid data points after cleaning")
+            return None
         
         # Fit linear regression
         model = LinearRegression()
@@ -93,6 +136,9 @@ def fit_prophet_model(group_data):
     """Prophet forecasting - more accurate but slower"""
     try:
         group = group_data.copy()
+        if 'date' not in group.columns or 'sales' not in group.columns:
+            logger.error("[PROPHET] Missing required columns")
+            return None
         group = group.sort_values('date')
         group = group.dropna(subset=['date', 'sales'])
         
@@ -130,8 +176,13 @@ def process_product(product_data):
             return {'product': product, 'error': 'Missing required columns'}
         
         group = group.copy()
+        if 'date' not in group.columns:
+            return {'product': product, 'error': 'Missing date column'}
         if group['date'].dtype != 'datetime64[ns]':
             group['date'] = pd.to_datetime(group['date'], errors='coerce')
+        
+        # Ensure sales column is numeric before processing
+        group['sales'] = pd.to_numeric(group['sales'], errors='coerce')
         
         group = group.dropna(subset=['date', 'sales'])
         
@@ -145,9 +196,12 @@ def process_product(product_data):
             return {'product': product, 'error': 'Forecast failed'}
         
         result['date'] = result['date'].dt.strftime('%Y-%m')
+        forecast_dict = result[['date', 'forecast', 'yhat_lower', 'yhat_upper']].to_dict(orient='records')
+        # Convert NumPy types to native Python types
+        forecast_dict = convert_numpy_types(forecast_dict)
         return {
-            'product': product,
-            'forecast': result[['date', 'forecast', 'yhat_lower', 'yhat_upper']].to_dict(orient='records')
+            'product': str(product),  # Ensure product name is string
+            'forecast': forecast_dict
         }
     except Exception as e:
         logger.error(f"[PRODUCT] Error processing {product}: {str(e)}")
@@ -163,6 +217,7 @@ async def forecast(file: UploadFile = File(...)):
                 df = pd.read_csv(io.BytesIO(contents))
                 original_total_rows = len(df)
                 logger.info(f"[DATA] Loaded CSV: {original_total_rows} rows, {len(df.columns)} columns")
+                logger.info(f"[DATA] Column names: {list(df.columns)}")
             
             # Optimized single-pass column detection with YEAR+MONTH support
             with timing_context("Column Detection"):
@@ -256,17 +311,47 @@ async def forecast(file: UploadFile = File(...)):
                     col_map['_combined_sales'] = 'sales'
                     sales_found = True
             
-            # Handle YEAR+MONTH date format (combine into date column)
-            if 'year' in df.columns and 'month' in df.columns and 'date' not in df.columns:
-                logger.info("[DATA] Combining YEAR and MONTH columns into date")
+            # Handle YEAR+MONTH date format (combine into date column) - BEFORE renaming
+            # Find original year and month column names (case-insensitive)
+            original_year_col = None
+            original_month_col = None
+            for col in df.columns:
+                col_lower = col.lower().strip()
+                if col_lower == 'year' and original_year_col is None:
+                    original_year_col = col
+                elif col_lower == 'month' and original_month_col is None:
+                    original_month_col = col
+            
+            # If we found year and month columns, and no date column was detected, combine them
+            if original_year_col and original_month_col and not date_found:
+                logger.info(f"[DATA] Combining YEAR ({original_year_col}) and MONTH ({original_month_col}) columns into date")
                 try:
+                    # Ensure year and month are numeric
+                    df[original_year_col] = pd.to_numeric(df[original_year_col], errors='coerce')
+                    df[original_month_col] = pd.to_numeric(df[original_month_col], errors='coerce')
+                    
+                    # Create date column directly (don't rename year/month first)
                     df['date'] = pd.to_datetime({
-                        'year': df['year'],
-                        'month': df['month'],
+                        'year': df[original_year_col],
+                        'month': df[original_month_col],
                         'day': 1
                     }, errors='coerce')
-                    df = df.drop(columns=['year', 'month'], errors='ignore')
-                    logger.info(f"[DATA] Created date column from YEAR+MONTH: {len(df[df['date'].notna()])} valid dates")
+                    
+                    # Remove year and month from col_map so they don't get renamed
+                    if original_year_col in col_map:
+                        del col_map[original_year_col]
+                    if original_month_col in col_map:
+                        del col_map[original_month_col]
+                    
+                    # Drop the original year and month columns after creating date
+                    df = df.drop(columns=[original_year_col, original_month_col], errors='ignore')
+                    
+                    valid_dates = len(df[df['date'].notna()])
+                    logger.info(f"[DATA] Created date column from YEAR+MONTH: {valid_dates} valid dates out of {len(df)} rows")
+                    date_found = True  # Mark date as found
+                    
+                    if valid_dates == 0:
+                        return {"error": "Could not create valid dates from YEAR and MONTH columns. Please check that year and month values are valid."}
                 except Exception as e:
                     logger.error(f"[DATA] Failed to combine YEAR+MONTH: {str(e)}")
                     return {"error": f"Could not combine YEAR and MONTH columns: {str(e)}"}
@@ -289,30 +374,42 @@ async def forecast(file: UploadFile = File(...)):
             df = df.rename(columns=col_map)
             
             # Handle date column conversion
-            if 'date' in df.columns:
-                try:
-                    if df['date'].dtype != 'datetime64[ns]':
-                        df['date'] = pd.to_datetime(df['date'], errors='coerce')
-                    if df['date'].isna().all():
-                        return {"error": "Could not parse date column. Please ensure dates are in a recognizable format (YYYY-MM-DD, YYYY, etc.)"}
-                except Exception as e:
-                    return {"error": f"Could not parse date column: {str(e)}"}
+            if 'date' not in df.columns:
+                # Check if we have year/month columns that weren't combined
+                if 'year' in df.columns or 'month' in df.columns:
+                    logger.warning("[DATA] YEAR/MONTH columns found but date column missing after mapping")
+                # Log available columns for debugging
+                logger.error(f"[DATA] Date column not found after mapping. Available columns: {list(df.columns)}")
+                available_cols = list(df.columns)
+                return {"error": f"Could not detect a date column in your CSV. Please ensure your CSV contains a date/time column. Found columns: {', '.join(available_cols[:10])}"}
+            
+            try:
+                if df['date'].dtype != 'datetime64[ns]':
+                    df['date'] = pd.to_datetime(df['date'], errors='coerce')
+                if df['date'].isna().all():
+                    return {"error": "Could not parse date column. Please ensure dates are in a recognizable format (YYYY-MM-DD, YYYY, etc.)"}
+            except Exception as e:
+                logger.error(f"[DATA] Date conversion error: {str(e)}")
+                return {"error": f"Could not parse date column: {str(e)}"}
             
             # Aggregate data for large files (monthly aggregation)
-            if original_total_rows > 100000:
+            if original_total_rows > 100000 and 'date' in df.columns:
                 with timing_context("Monthly Data Aggregation"):
                     logger.info(f"[DATA] Large file detected. Aggregating {len(df)} rows to monthly totals")
-                    df['year_month'] = df['date'].dt.to_period('M')
-                    agg_dict = {'sales': 'sum'}
-                    if 'product' in df.columns:
-                        df_agg = df.groupby(['product', 'year_month']).agg(agg_dict).reset_index()
-                        df_agg['date'] = pd.to_datetime(df_agg['year_month'].astype(str))
-                    else:
-                        df_agg = df.groupby('year_month').agg(agg_dict).reset_index()
-                        df_agg['date'] = pd.to_datetime(df_agg['year_month'].astype(str))
-                    df_agg = df_agg.drop(columns=['year_month'], errors='ignore')
-                    df = df_agg
-                    logger.info(f"[DATA] Aggregated to {len(df)} monthly records (reduced from {original_total_rows} rows)")
+                    try:
+                        df['year_month'] = df['date'].dt.to_period('M')
+                        agg_dict = {'sales': 'sum'}
+                        if 'product' in df.columns:
+                            df_agg = df.groupby(['product', 'year_month']).agg(agg_dict).reset_index()
+                            df_agg['date'] = pd.to_datetime(df_agg['year_month'].astype(str))
+                        else:
+                            df_agg = df.groupby('year_month').agg(agg_dict).reset_index()
+                            df_agg['date'] = pd.to_datetime(df_agg['year_month'].astype(str))
+                        df_agg = df_agg.drop(columns=['year_month'], errors='ignore')
+                        df = df_agg
+                        logger.info(f"[DATA] Aggregated to {len(df)} monthly records (reduced from {original_total_rows} rows)")
+                    except Exception as e:
+                        logger.warning(f"[DATA] Aggregation failed, continuing with original data: {str(e)}")
             
             # If product column exists, do multi-product forecasting
             if 'product' in df.columns:
@@ -346,6 +443,8 @@ async def forecast(file: UploadFile = File(...)):
                         return {"error": "No valid product time series found in CSV."}
                     
                     logger.info(f"[FORECAST] Completed {len(forecasts)} product forecasts")
+                    # Convert NumPy types in forecasts list
+                    forecasts = convert_numpy_types(forecasts)
                     return {"forecasts": forecasts}
             
             # Otherwise, do single time series forecasting
@@ -362,6 +461,9 @@ async def forecast(file: UploadFile = File(...)):
                 if df['date'].dtype != 'datetime64[ns]':
                     df['date'] = pd.to_datetime(df['date'], errors='coerce')
                 
+                # Ensure sales column is numeric before processing
+                df['sales'] = pd.to_numeric(df['sales'], errors='coerce')
+                
                 df = df.dropna(subset=['date', 'sales'])
                 
                 if len(df) < 3:
@@ -374,10 +476,16 @@ async def forecast(file: UploadFile = File(...)):
                     return {"error": "Forecast generation failed"}
                 
                 result['date'] = result['date'].dt.strftime('%Y-%m')
-                return {"forecast": result[['date', 'forecast', 'yhat_lower', 'yhat_upper']].to_dict(orient='records')}
+                forecast_dict = result[['date', 'forecast', 'yhat_lower', 'yhat_upper']].to_dict(orient='records')
+                # Convert NumPy types to native Python types
+                forecast_dict = convert_numpy_types(forecast_dict)
+                return {"forecast": forecast_dict}
     
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         logger.error(f"[ERROR] Forecast endpoint error: {str(e)}")
+        logger.error(f"[ERROR] Traceback: {error_trace}")
         return {"error": f"An error occurred: {str(e)}"}
 
 @app.get("/")

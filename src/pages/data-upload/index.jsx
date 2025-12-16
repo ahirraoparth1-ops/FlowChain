@@ -9,13 +9,6 @@ import Icon from '../../components/AppIcon';
 import * as XLSX from 'xlsx';
 
 const DataUpload = () => {
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [previewData, setPreviewData] = useState(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [processingProgress, setProcessingProgress] = useState(0);
-  const [toast, setToast] = useState({ message: '', type: '', isVisible: false });
-  const [rawFileData, setRawFileData] = useState(null);
-
   // Mock data for different file types
   const mockPreviewData = {
     csv: [
@@ -44,6 +37,14 @@ const DataUpload = () => {
     ]
   };
 
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewData, setPreviewData] = useState(mockPreviewData.csv); // Initialize with demo data
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingProgress, setProcessingProgress] = useState(0);
+  const [toast, setToast] = useState({ message: '', type: '', isVisible: false });
+  const [rawFileData, setRawFileData] = useState(null);
+  const [isDemoData, setIsDemoData] = useState(true); // Start with demo data
+
   const showToast = (message, type) => {
     setToast({ message, type, isVisible: true });
   };
@@ -51,6 +52,15 @@ const DataUpload = () => {
   const hideToast = () => {
     setToast(prev => ({ ...prev, isVisible: false }));
   };
+
+  // Show demo data when no file is selected and not processing
+  useEffect(() => {
+    if (!selectedFile && !isProcessing) {
+      setPreviewData(mockPreviewData.csv);
+      setIsDemoData(true);
+      setRawFileData(null);
+    }
+  }, [selectedFile, isProcessing]);
 
   const parseExcelFile = async (file) => {
     return new Promise((resolve, reject) => {
@@ -157,6 +167,7 @@ const DataUpload = () => {
       const previewRows = parsedData?.slice(0, 10);
       setPreviewData(previewRows);
       setRawFileData(parsedData);
+      setIsDemoData(false);
 
       // Store only metadata in localStorage (not the entire dataset to avoid quota issues)
       try {
@@ -176,8 +187,9 @@ const DataUpload = () => {
     } catch (parseError) {
       console.error('File parsing error:', parseError);
       showToast(`Error parsing file: ${parseError?.message}`, 'error');
-      setPreviewData(null);
+      setPreviewData(mockPreviewData.csv);
       setRawFileData(null);
+      setIsDemoData(true);
     }
   };
 
@@ -196,11 +208,23 @@ const DataUpload = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      // Send file to FastAPI backend
+      // Send file to FastAPI backend with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+      
+      setProcessingProgress(30);
       const response = await fetch('http://127.0.0.1:8000/forecast', {
         method: 'POST',
         body: formData,
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
+        throw new Error(errorData.error || `Server error: ${response.status}`);
+      }
+      
       setProcessingProgress(60);
       const result = await response.json();
       setProcessingProgress(90);
@@ -208,11 +232,21 @@ const DataUpload = () => {
       if (result.error) {
         showToast(`Forecast error: ${result.error}`, 'error');
         setIsProcessing(false);
+        setProcessingProgress(0);
         return false;
       }
 
       // Store forecast result in localStorage for dashboard
-      localStorage.setItem('forecastResult', JSON.stringify(result.forecast));
+      // Handle both single forecast and multiple forecasts (products)
+      const forecastData = result.forecast || result.forecasts;
+      if (!forecastData) {
+        showToast('Forecast error: No forecast data received from server', 'error');
+        setIsProcessing(false);
+        setProcessingProgress(0);
+        return false;
+      }
+      
+      localStorage.setItem('forecastResult', JSON.stringify(forecastData));
 
       setIsProcessing(false);
       setProcessingProgress(100);
@@ -220,19 +254,32 @@ const DataUpload = () => {
       return true;
     } catch (processingError) {
       setIsProcessing(false);
-      showToast(`Processing failed: ${processingError?.message}`, 'error');
+      setProcessingProgress(0);
+      
+      let errorMessage = processingError?.message || 'Unknown error occurred';
+      if (processingError.name === 'AbortError') {
+        errorMessage = 'Request timed out. The file may be too large or the server is taking too long to process. Please try with a smaller file or check the backend logs.';
+      } else if (processingError.message.includes('Failed to fetch')) {
+        errorMessage = 'Could not connect to the backend server. Please ensure the backend is running on http://127.0.0.1:8000';
+      }
+      
+      showToast(`Processing failed: ${errorMessage}`, 'error');
+      console.error('Processing error:', processingError);
       return false;
     }
   };
 
   const handleClearFile = () => {
     setSelectedFile(null);
-    setPreviewData(null);
     setRawFileData(null);
     setProcessingProgress(0);
     
     // Clear stored data
     localStorage.removeItem('uploadedData');
+    
+    // Restore demo data
+    setPreviewData(mockPreviewData.csv);
+    setIsDemoData(true);
     
     showToast('File cleared successfully', 'info');
   };
@@ -277,7 +324,7 @@ const DataUpload = () => {
           </motion.div>
 
           {/* File Preview Section */}
-          {previewData && (
+          {previewData && !isProcessing && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -286,15 +333,27 @@ const DataUpload = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-foreground">File Preview</h3>
-                {rawFileData && (
-                  <div className="text-sm text-muted-foreground">
-                    Showing 10 of {rawFileData?.length} total rows
-                  </div>
-                )}
+                <div className="flex items-center space-x-3">
+                  {isDemoData && (
+                    <div className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-medium">
+                      Demo Data
+                    </div>
+                  )}
+                  {rawFileData && (
+                    <div className="text-sm text-muted-foreground">
+                      Showing 10 of {rawFileData?.length} total rows
+                    </div>
+                  )}
+                  {isDemoData && (
+                    <div className="text-sm text-muted-foreground">
+                      Showing {previewData?.length} demo rows
+                    </div>
+                  )}
+                </div>
               </div>
               <FilePreviewTable
                 previewData={previewData}
-                fileName={selectedFile?.name}
+                fileName={selectedFile?.name || 'demo_data.csv'}
               />
             </motion.div>
           )}
