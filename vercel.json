@@ -3,7 +3,7 @@
   "outputDirectory": "build",
   "rewrites": [
     {
-      "source": "/((?!assets|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|ico|css|js|woff|woff2|ttf|eot)).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
