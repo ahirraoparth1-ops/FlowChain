@@ -213,7 +213,7 @@ const DataUpload = () => {
       const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
       
       setProcessingProgress(30);
-      const response = await fetch('http://127.0.0.1:8000/forecast', {
+      const response = await fetch('https://flowchain.onrender.com/forecast', {
         method: 'POST',
         body: formData,
         signal: controller.signal,
@@ -260,7 +260,7 @@ const DataUpload = () => {
       if (processingError.name === 'AbortError') {
         errorMessage = 'Request timed out. The file may be too large or the server is taking too long to process. Please try with a smaller file or check the backend logs.';
       } else if (processingError.message.includes('Failed to fetch')) {
-        errorMessage = 'Could not connect to the backend server. Please ensure the backend is running on http://127.0.0.1:8000';
+        errorMessage = 'Could not connect to the backend server. Please ensure the backend is running on https://flowchain.onrender.com';
       }
       
       showToast(`Processing failed: ${errorMessage}`, 'error');
