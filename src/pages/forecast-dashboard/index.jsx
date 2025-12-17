@@ -242,7 +242,7 @@ const ForecastDashboard = () => {
     
     setApiLoading(true);
     try {
-      const response = await fetch("https://flowchain.onrender.com/forecast", {
+      const response = await fetch("https://flowchain.onrender.com/predict", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
