@@ -217,6 +217,7 @@ const DataUpload = () => {
 
     setIsProcessing(true);
     setProcessingProgress(0);
+    let timeoutTriggered = false;
 
     try {
       // Show progress bar while uploading/processing
@@ -227,15 +228,8 @@ const DataUpload = () => {
       // Send file to FastAPI backend with 1 minute timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
+        timeoutTriggered = true;
         controller.abort();
-        // After 1 minute, show demo data
-        const demoForecast = generateDemoForecast();
-        localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
-        
-        setIsProcessing(false);
-        setProcessingProgress(100);
-        showToast('Processing is taking longer than expected. Showing demo forecast data.', 'info');
-        return true;
       }, 60000); // 1 minute timeout
       
       setProcessingProgress(30);
@@ -245,6 +239,11 @@ const DataUpload = () => {
         signal: controller.signal,
       });
       clearTimeout(timeoutId);
+      
+      // If timeout already triggered, don't process response
+      if (timeoutTriggered) {
+        return true;
+      }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: `HTTP ${response.status}: ${response.statusText}` }));
@@ -279,9 +278,13 @@ const DataUpload = () => {
       showToast('Forecast generated successfully! You can now view results in the dashboard.', 'success');
       return true;
     } catch (processingError) {
-      // Check if it's a timeout - if so, demo data should already be set
-      if (processingError.name === 'AbortError') {
-        // Timeout handler already set demo data, just return
+      // If timeout occurred, show demo data
+      if (processingError.name === 'AbortError' && timeoutTriggered) {
+        const demoForecast = generateDemoForecast();
+        localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
+        setIsProcessing(false);
+        setProcessingProgress(100);
+        showToast('Processing is taking longer than expected. Showing demo forecast data instead.', 'info');
         return true;
       }
       
@@ -290,18 +293,17 @@ const DataUpload = () => {
       
       let errorMessage = processingError?.message || 'Unknown error occurred';
       if (processingError.message.includes('Failed to fetch')) {
-        errorMessage = 'Could not connect to the backend server at https://flowchain.onrender.com. Showing demo data instead.';
-        // Show demo data on connection error too
+        // Show demo data on connection error
         const demoForecast = generateDemoForecast();
         localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
-        showToast('Showing demo forecast data due to connection issue.', 'info');
+        showToast('Could not connect to backend. Showing demo forecast data instead.', 'info');
         return true;
       }
       
       // For other errors, show demo data as fallback
       const demoForecast = generateDemoForecast();
       localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
-      showToast(`Processing encountered an issue. Showing demo forecast data. Error: ${errorMessage}`, 'info');
+      showToast(`Processing encountered an issue. Showing demo forecast data instead.`, 'info');
       console.error('Processing error:', processingError);
       return true;
     }
