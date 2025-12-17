@@ -17,6 +17,10 @@ const ForecastDashboard = () => {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [showReverseForecasting, setShowReverseForecasting] = useState(false);
   const [uploadedDataInfo, setUploadedDataInfo] = useState(null);
+  // Backend API prediction states
+  const [demand, setDemand] = useState("");
+  const [apiResult, setApiResult] = useState(null);
+  const [apiLoading, setApiLoading] = useState(false);
 
   // Dynamic metrics based on uploaded data and forecast
   const totalItems = uploadedDataInfo?.totalRows || 0;
@@ -229,6 +233,37 @@ const ForecastDashboard = () => {
     }, 1000);
   };
 
+  // Backend API prediction function
+  const predictDemand = async () => {
+    if (!demand) {
+      alert("Please enter a demand value");
+      return;
+    }
+    
+    setApiLoading(true);
+    try {
+      const response = await fetch("https://flowchain.onrender.com/predict", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ demand: Number(demand) }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setApiResult(data);
+    } catch (err) {
+      console.error("Backend API error:", err);
+      alert("Backend not reachable. Please check if the API is running.");
+      setApiResult(null);
+    }
+    setApiLoading(false);
+  };
+
   // Use uploaded data if available, otherwise use mock data
   const chartData = React.useMemo(() => {
     if (uploadedDataInfo?.data) {
@@ -313,6 +348,52 @@ const ForecastDashboard = () => {
               </Button>
             </div>
           </div>
+        </motion.div>
+
+        {/* Backend API Prediction Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="mb-8 bg-white border border-gray-200 rounded-xl p-6 shadow-sm"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-1">AI Supply Chain Predictor</h3>
+              <p className="text-sm text-gray-600">Get instant predictions from the backend API</p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-4 items-end">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter Demand Value
+              </label>
+              <input
+                type="number"
+                placeholder="Enter demand"
+                value={demand}
+                onChange={(e) => setDemand(e.target.value)}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+            <Button
+              onClick={predictDemand}
+              disabled={apiLoading || !demand}
+              iconName={apiLoading ? "Loader" : "Zap"}
+              iconPosition="left"
+              className="min-w-[120px]"
+            >
+              {apiLoading ? "Predicting..." : "Predict"}
+            </Button>
+          </div>
+          {apiResult && (
+            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">Prediction Result:</h4>
+              <pre className="text-sm text-blue-800 overflow-auto bg-white p-3 rounded border border-blue-100">
+                {JSON.stringify(apiResult, null, 2)}
+              </pre>
+            </div>
+          )}
         </motion.div>
 
         {/* Data Source Alert */}
