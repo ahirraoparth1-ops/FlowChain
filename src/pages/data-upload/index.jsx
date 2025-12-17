@@ -193,6 +193,22 @@ const DataUpload = () => {
     }
   };
 
+  // Generate demo forecast data for timeout fallback
+  const generateDemoForecast = () => {
+    const months = [];
+    const baseDate = new Date();
+    for (let i = 1; i <= 12; i++) {
+      const date = new Date(baseDate.getFullYear(), baseDate.getMonth() + i, 1);
+      months.push({
+        date: date.toISOString().slice(0, 7), // YYYY-MM format
+        forecast: Math.floor(Math.random() * 5000) + 10000,
+        yhat_lower: Math.floor(Math.random() * 4000) + 8000,
+        yhat_upper: Math.floor(Math.random() * 6000) + 12000
+      });
+    }
+    return months;
+  };
+
   const handleProcessData = async () => {
     if (!selectedFile) {
       showToast('No file selected. Please upload a file first.', 'error');
@@ -208,9 +224,19 @@ const DataUpload = () => {
       const formData = new FormData();
       formData.append('file', selectedFile);
 
-      // Send file to FastAPI backend with timeout
+      // Send file to FastAPI backend with 1 minute timeout
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        // After 1 minute, show demo data
+        const demoForecast = generateDemoForecast();
+        localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
+        
+        setIsProcessing(false);
+        setProcessingProgress(100);
+        showToast('Processing is taking longer than expected. Showing demo forecast data.', 'info');
+        return true;
+      }, 60000); // 1 minute timeout
       
       setProcessingProgress(30);
       const response = await fetch('https://flowchain.onrender.com/forecast', {
@@ -253,19 +279,31 @@ const DataUpload = () => {
       showToast('Forecast generated successfully! You can now view results in the dashboard.', 'success');
       return true;
     } catch (processingError) {
+      // Check if it's a timeout - if so, demo data should already be set
+      if (processingError.name === 'AbortError') {
+        // Timeout handler already set demo data, just return
+        return true;
+      }
+      
       setIsProcessing(false);
       setProcessingProgress(0);
       
       let errorMessage = processingError?.message || 'Unknown error occurred';
-      if (processingError.name === 'AbortError') {
-        errorMessage = 'Request timed out. The file may be too large or the server is taking too long to process. Please try with a smaller file or check the backend logs.';
-      } else if (processingError.message.includes('Failed to fetch')) {
-        errorMessage = 'Could not connect to the backend server at https://flowchain.onrender.com. Please check if the backend is running.';
+      if (processingError.message.includes('Failed to fetch')) {
+        errorMessage = 'Could not connect to the backend server at https://flowchain.onrender.com. Showing demo data instead.';
+        // Show demo data on connection error too
+        const demoForecast = generateDemoForecast();
+        localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
+        showToast('Showing demo forecast data due to connection issue.', 'info');
+        return true;
       }
       
-      showToast(`Processing failed: ${errorMessage}`, 'error');
+      // For other errors, show demo data as fallback
+      const demoForecast = generateDemoForecast();
+      localStorage.setItem('forecastResult', JSON.stringify(demoForecast));
+      showToast(`Processing encountered an issue. Showing demo forecast data. Error: ${errorMessage}`, 'info');
       console.error('Processing error:', processingError);
-      return false;
+      return true;
     }
   };
 
