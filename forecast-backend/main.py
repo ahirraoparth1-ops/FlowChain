@@ -1,5 +1,6 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from prophet import Prophet
 import pandas as pd
 import io
@@ -41,6 +42,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+class DemandRequest(BaseModel):
+    demand: float
+
+@app.post("/predict")
+def predict_demand(req: DemandRequest):
+    demand = req.demand
+
+    # simple example prediction logic
+    prediction = demand * 1.1  
+
+    return {
+        "input_demand": demand,
+        "predicted_demand": prediction
+    }
 
 # Performance timing context manager
 @contextmanager
@@ -505,5 +521,6 @@ def root():
  @ a p p . g e t ( " / h e a l t h z " ) 
  d e f   h e a l t h z ( ) : 
          r e t u r n   { " s t a t u s " :   " o k " } 
-  
+ 
+ 
  
