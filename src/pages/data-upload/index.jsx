@@ -260,7 +260,7 @@ const DataUpload = () => {
       if (processingError.name === 'AbortError') {
         errorMessage = 'Request timed out. The file may be too large or the server is taking too long to process. Please try with a smaller file or check the backend logs.';
       } else if (processingError.message.includes('Failed to fetch')) {
-        errorMessage = 'Could not connect to the backend server. Please ensure the backend is running on https://flowchain.onrender.com';
+        errorMessage = 'Could not connect to the backend server at https://flowchain.onrender.com. Please check if the backend is running.';
       }
       
       showToast(`Processing failed: ${errorMessage}`, 'error');
